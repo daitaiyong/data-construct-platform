@@ -1,0 +1,12 @@
+# Go
+/go-service/bin/
+
+# Python
+__pycache__/
+*.py[cod]
+/python-engine/service/template_engine_pb2.py
+/python-engine/service/template_engine_pb2_grpc.py
+
+# Node / Vue
+/web/node_modules/
+/web/dist/

@@ -1,0 +1,4 @@
+grpc:
+  address: "[::]:50051"
+generator:
+  max_records_per_request: 10000

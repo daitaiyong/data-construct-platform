@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package templateengine.v1;
+
+option go_package = "github.com/daitaiyong/data-construct-platform/go-service/internal/pb;pb";
+
+service TemplateEngine {
+  rpc Render(RenderRequest) returns (RenderResponse);
+}
+
+message RenderRequest {
+  string template_id = 1;
+  string template = 2;
+  map<string, string> variables = 3;
+  uint32 record_count = 4;
+}
+
+message RenderResponse {
+  repeated string records = 1;
+}

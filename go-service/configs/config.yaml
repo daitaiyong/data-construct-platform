@@ -1,0 +1,11 @@
+api:
+  addr: ":8080"
+python_engine:
+  address: "localhost:50051"
+mysql:
+  dsn: "user:password@tcp(localhost:3306)/data_construct?parseTime=true"
+redis:
+  address: "localhost:6379"
+kafka:
+  brokers:
+    - "localhost:9092"
