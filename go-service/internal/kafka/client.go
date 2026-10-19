@@ -7,6 +7,11 @@ import (
 
 var ErrNotConfigured = errors.New("kafka adapter is not configured")
 
+const (
+	TaskTopic  = "data-construct-task"
+	EventTopic = "data-construct-event"
+)
+
 type Message struct {
 	Key   []byte
 	Value []byte

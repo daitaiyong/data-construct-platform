@@ -42,19 +42,21 @@ func (h *Handler) listTemplates(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *Handler) createTemplate(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Name    string `json:"name"`
-		Content string `json:"content"`
-	}
+	var request template.Template
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if strings.TrimSpace(request.Name) == "" || strings.TrimSpace(request.Content) == "" {
-		writeError(w, http.StatusBadRequest, "name and content are required")
+	if strings.TrimSpace(request.Name) == "" ||
+		strings.TrimSpace(request.TargetType) == "" ||
+		strings.TrimSpace(request.Creator) == "" ||
+		request.BatchSize == 0 ||
+		len(request.Fields) == 0 ||
+		!json.Valid(request.Fields) {
+		writeError(w, http.StatusBadRequest, "name, targetType, positive batchSize, valid fields, and creator are required")
 		return
 	}
-	item, err := h.templates.Create(request.Name, request.Content)
+	item, err := h.templates.Create(request)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "unable to create template")
 		return
@@ -80,24 +82,29 @@ func (h *Handler) validateDAG(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) createJob(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		TemplateID string `json:"templateId"`
+		DAGID       string `json:"dagId"`
+		TriggerType string `json:"triggerType"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if strings.TrimSpace(request.TemplateID) == "" {
-		writeError(w, http.StatusBadRequest, "templateId is required")
+	if strings.TrimSpace(request.DAGID) == "" {
+		writeError(w, http.StatusBadRequest, "dagId is required")
 		return
 	}
-	if _, err := h.templates.Get(request.TemplateID); errors.Is(err, template.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "template not found")
-		return
-	} else if err != nil {
-		writeError(w, http.StatusInternalServerError, "unable to load template")
+	if request.TriggerType == "" {
+		request.TriggerType = "api"
+	}
+	if request.TriggerType != "manual" && request.TriggerType != "schedule" && request.TriggerType != "api" {
+		writeError(w, http.StatusBadRequest, "triggerType must be manual, schedule, or api")
 		return
 	}
-	item := h.jobs.Create(request.TemplateID)
+	item, err := h.jobs.Create(request.DAGID, request.TriggerType)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to create job")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, item)
 }
 

@@ -6,6 +6,13 @@ mysql:
   dsn: "user:password@tcp(localhost:3306)/data_construct?parseTime=true"
 redis:
   address: "localhost:6379"
+  keys:
+    template: "tpl:{id}"
+    job_context: "job:{job_id}:context"
+    job_lock: "lock:job:{job_id}"
 kafka:
   brokers:
     - "localhost:9092"
+  topics:
+    task: "data-construct-task"
+    event: "data-construct-event"

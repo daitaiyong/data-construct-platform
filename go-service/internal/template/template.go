@@ -3,6 +3,7 @@ package template
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -11,15 +12,19 @@ import (
 var ErrNotFound = errors.New("template not found")
 
 type Template struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         string          `json:"templateId"`
+	Name       string          `json:"name"`
+	Description string         `json:"desc"`
+	TargetType string          `json:"targetType"`
+	BatchSize  uint32          `json:"batchSize"`
+	Fields     json.RawMessage `json:"fields"`
+	Creator    string          `json:"creator"`
+	CreatedAt  time.Time       `json:"createTime"`
 }
 
 type Repository interface {
 	List() []Template
-	Create(name, content string) (Template, error)
+	Create(item Template) (Template, error)
 	Get(id string) (Template, error)
 }
 
@@ -43,17 +48,13 @@ func (r *MemoryRepository) List() []Template {
 	return result
 }
 
-func (r *MemoryRepository) Create(name, content string) (Template, error) {
+func (r *MemoryRepository) Create(item Template) (Template, error) {
 	random := make([]byte, 16)
 	if _, err := rand.Read(random); err != nil {
 		return Template{}, err
 	}
-	item := Template{
-		ID:        hex.EncodeToString(random),
-		Name:      name,
-		Content:   content,
-		CreatedAt: time.Now().UTC(),
-	}
+	item.ID = hex.EncodeToString(random)
+	item.CreatedAt = time.Now().UTC()
 	r.mu.Lock()
 	r.templates[item.ID] = item
 	r.mu.Unlock()

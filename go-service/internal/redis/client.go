@@ -8,6 +8,12 @@ import (
 
 var ErrNotConfigured = errors.New("redis adapter is not configured")
 
+func TemplateKey(id string) string { return "tpl:" + id }
+
+func JobContextKey(jobID string) string { return "job:" + jobID + ":context" }
+
+func JobLockKey(jobID string) string { return "lock:job:" + jobID }
+
 type Cache interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
