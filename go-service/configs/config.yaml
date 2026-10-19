@@ -6,10 +6,23 @@ mysql:
   dsn: "user:password@tcp(localhost:3306)/data_construct?parseTime=true"
 redis:
   address: "localhost:6379"
+  key_prefix: "dc:"
+  ttl:
+    job_lock_seconds: 300
+    task_lock_seconds: 600
+    job_context_seconds: 86400
+    template_cache_seconds: 3600
+    preview_cache_seconds: 600
   keys:
-    template: "tpl:{id}"
-    job_context: "job:{job_id}:context"
-    job_lock: "lock:job:{job_id}"
+    template: "dc:template:{template_id}"
+    template_list: "dc:template:list"
+    job_context: "dc:job:{job_id}:context"
+    job_lock: "dc:lock:job:{job_id}"
+    task_lock: "dc:lock:task:{task_id}"
+    task_count: "dc:job:{job_id}:task_cnt"
+    sink_limit: "dc:limit:sink:{sink_key}"
+    retry_queue: "dc:retry:queue"
+    preview: "dc:preview:{preview_req_id}"
 kafka:
   brokers:
     - "localhost:9092"

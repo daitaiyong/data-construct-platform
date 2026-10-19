@@ -10,6 +10,10 @@ var ErrNotConfigured = errors.New("kafka adapter is not configured")
 const (
 	TaskTopic  = "data-construct-task"
 	EventTopic = "data-construct-event"
+
+	EventStateConsumerGroup = "data-construct-state"
+	EventMetricsGroup       = "data-construct-metrics"
+	EventLogsGroup          = "data-construct-logs"
 )
 
 type Message struct {

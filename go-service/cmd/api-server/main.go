@@ -13,13 +13,19 @@ import (
 	"github.com/daitaiyong/data-construct-platform/go-service/api"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/job"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/template"
+	"github.com/daitaiyong/data-construct-platform/go-service/internal/templateengine"
 )
 
 func main() {
 	addr := envOr("API_ADDR", ":8080")
+	engine, err := templateengine.Dial(envOr("TEMPLATE_ENGINE_ADDR", "localhost:50051"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer engine.Close()
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           api.NewHandler(template.NewMemoryRepository(), job.NewMemoryRepository()).Routes(),
+		Handler:           api.NewHandler(template.NewMemoryRepository(), job.NewMemoryRepository(), engine).Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

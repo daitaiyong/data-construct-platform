@@ -1,6 +1,8 @@
-# Generated gRPC code
+# Template engine gRPC contract
 
-`template_engine.proto` is the source of truth at `../../../python-engine/proto/template_engine.proto`.
-Generate Go protobuf and gRPC stubs into this directory with `protoc` plus the
-`protoc-gen-go` and `protoc-gen-go-grpc` plugins when the Go Worker starts using
-the Python engine. Generated files are intentionally omitted from this scaffold.
+The source of truth is `../../../python-engine/proto/template_engine.proto`.
+The generated Go protobuf messages and gRPC client/server stubs in this
+directory are produced with `protoc`; regenerate them using the command in the
+repository README when the contract changes. The Go worker calls
+`TemplateEngineService.GenerateData`, and the client also exposes
+`ValidateTemplate`.

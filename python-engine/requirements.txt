@@ -1,4 +1,4 @@
 grpcio>=1.60,<2
 grpcio-tools>=1.60,<2
-protobuf>=4.25,<6
+protobuf>=5.26,<8
 PyYAML>=6,<7

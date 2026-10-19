@@ -1,12 +1,11 @@
 package job
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/daitaiyong/data-construct-platform/go-service/internal/id"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/redis"
 )
 
@@ -22,14 +21,14 @@ const (
 )
 
 type Job struct {
-	ID          string     `json:"jobId"`
-	DAGID       string     `json:"dagId"`
+	ID          string     `json:"job_id"`
+	DAGID       string     `json:"dag_id"`
 	Status      Status     `json:"status"`
-	StartTime   *time.Time `json:"startTime,omitempty"`
-	EndTime     *time.Time `json:"endTime,omitempty"`
-	TriggerType string     `json:"triggerType"`
-	ContextKey  string     `json:"contextKey"`
-	CreatedAt   time.Time  `json:"createTime"`
+	StartTime   *time.Time `json:"start_time,omitempty"`
+	EndTime     *time.Time `json:"end_time,omitempty"`
+	TriggerType string     `json:"trigger_type"`
+	ContextKey  string     `json:"context_key"`
+	CreatedAt   time.Time  `json:"create_time"`
 }
 
 type Repository interface {
@@ -48,18 +47,17 @@ func NewMemoryRepository() *MemoryRepository {
 }
 
 func (r *MemoryRepository) Create(dagID, triggerType string) (Job, error) {
-	random := make([]byte, 16)
-	if _, err := rand.Read(random); err != nil {
+	jobID, err := id.New()
+	if err != nil {
 		return Job{}, err
 	}
 	now := time.Now().UTC()
-	id := hex.EncodeToString(random)
 	item := Job{
-		ID:          id,
+		ID:          jobID,
 		DAGID:       dagID,
 		Status:      StatusQueued,
 		TriggerType: triggerType,
-		ContextKey:  redis.JobContextKey(id),
+		ContextKey:  redis.JobContextKey(jobID),
 		CreatedAt:   now,
 	}
 	r.mu.Lock()
@@ -89,15 +87,15 @@ const (
 )
 
 type Task struct {
-	ID         string     `json:"taskId"`
-	JobID      string     `json:"jobId"`
-	TemplateID string     `json:"templateId"`
-	NodeID     string     `json:"nodeId"`
+	ID         string     `json:"task_id"`
+	JobID      string     `json:"job_id"`
+	TemplateID string     `json:"template_id"`
+	NodeID     string     `json:"node_id"`
 	Status     TaskStatus `json:"status"`
-	ErrorMsg   string     `json:"errorMsg,omitempty"`
-	BatchCount uint64     `json:"batchCount"`
-	StartTime  *time.Time `json:"startTime,omitempty"`
-	EndTime    *time.Time `json:"endTime,omitempty"`
+	ErrorMsg   string     `json:"error_msg,omitempty"`
+	BatchCount uint64     `json:"batch_count"`
+	StartTime  *time.Time `json:"start_time,omitempty"`
+	EndTime    *time.Time `json:"end_time,omitempty"`
 }
 
 type LogLevel string
@@ -110,10 +108,10 @@ const (
 )
 
 type JobLog struct {
-	ID        uint64    `json:"logId"`
-	JobID     string    `json:"jobId"`
-	TaskID    *string   `json:"taskId,omitempty"`
+	ID        string    `json:"log_id"`
+	JobID     string    `json:"job_id"`
+	TaskID    *string   `json:"task_id,omitempty"`
 	Level     LogLevel  `json:"level"`
 	Message   string    `json:"message"`
-	CreatedAt time.Time `json:"createTime"`
+	CreatedAt time.Time `json:"create_time"`
 }

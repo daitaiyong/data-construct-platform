@@ -1,10 +1,37 @@
-"""Expression runtime boundary.
+import faker
+import uuid
+import time
+from snowflake import SnowflakeGenerator
 
-Expressions are intentionally not evaluated with Python eval(). Add a
-whitelisted expression grammar here before enabling user-authored expressions.
-"""
+fake = faker.Faker()
+sf_gen = SnowflakeGenerator(42)
 
+class ExprRuntime:
+    func_map = {
+        "name": lambda: fake.name(),
+        "phone": lambda: fake.phone_number(),
+        "address": lambda: fake.address(),
+        "now": lambda: time.strftime("%Y-%m-%d %H:%M:%S"),
+        "uuid": lambda: str(uuid.uuid4()),
+        "snowflake": lambda: next(sf_gen),
+    }
 
-def evaluate(expression: str, context: dict[str, object]) -> object:
-    del expression, context
-    raise NotImplementedError("expression evaluation is not configured")
+    @classmethod
+    def eval(cls, rule: str, ctx: dict):
+        """
+        rule: 表达式字符串，如 name() / ${node01.user_id_list}
+        ctx: DAG上下文变量字典
+        """
+        if not rule:
+            return None
+        # 变量引用解析 ${xxx}
+        if rule.startswith("${") and rule.endswith("}"):
+            var_key = rule[2:-1].strip()
+            return ctx.get(var_key, None)
+        # 内置函数调用
+        if rule.endswith("()"):
+            fn_name = rule[:-2]
+            if fn_name in cls.func_map:
+                return cls.func_map[fn_name]()
+        # 常量直接返回
+        return rule
