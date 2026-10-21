@@ -122,6 +122,14 @@ MySQL、Redis、Kafka 仅由本地依赖环境提供；当前 MySQL 初始化脚
 
 Worker 的 `Consume` 在处理失败时发布 `task_fail` 并返回错误，让 Kafka Consumer/调度适配器决定重试或死信处理；`retry_times` 不会由 Worker 自动增加或重新投递。`task_id` 会传入 sink 的批量写入接口，作为实现幂等写入的键；调度/消费适配器应据此实施持久化幂等保护，并控制最多 `max_retry` 次重试。当前仓库的 Kafka、Redis 和 sink 实现仍是适配器接口/占位实现，尚未形成可运行的端到端消费部署。
 
+### Job / Task 状态机
+
+状态规则实现于 [state_machine.go](./go-service/internal/job/state_machine.go)，事件入口由 [event_consumer.go](./go-service/internal/job/event_consumer.go) 定义。Job 状态为 `pending → running → success|failed|canceled`，pending Job 可直接转 canceled；Task 状态为 `pending → running → success|failed|canceled`，failed Task 在还有重试额度时回到 pending，等待同一 task 的重投；pending Task 可转 skipped/canceled。
+
+只有所有上游 Task 为 success 时，下游 Task 才会出现在 ready 列表。`continue` 失败会跳过所有依赖该失败节点的 pending 后代，同时允许无关分支继续；当所有 Task 进入终态且没有 abort 失败时，Job 成功（continue 失败视为允许的终态）。`abort_dag` 重试耗尽后 Job 失败，取消未执行的 pending Task，不再调度后续节点。Job 取消事件会将 pending/running Task 标为 canceled；已经开始的底层生成/写入操作无法被强制终止，迟到的 Task 事件会被确认但不会覆盖 canceled 状态。
+
+API `POST /api/v1/jobs/{id}/cancel` 只发布 `job_cancel` 事件，不直接写 Job/Task 状态；需要注入 Kafka Producer。Worker 仅发 Task 事件。Event Consumer 调用 `AtomicEventStore`，生产实现必须在单个数据库事务中去重 `event_id`、应用 Job/Task 状态变化，并持久化重试/ready 动作（建议 transactional outbox），避免数据库更新与 Kafka 重投之间丢失动作。数据库枚举及重试字段见 [init.sql](./scripts/init.sql)；新增的 `data_event_inbox` 用于持久事件去重。当前项目只有内存状态机参考实现，尚未提供 MySQL 原子投影、真实 event consumer、重试 outbox 或 DAG 调度器。
+
 ### Redis Key 与过期策略
 
 所有 Redis Key 使用 `dc:` 前缀，常量、key helper 和带 TTL 的辅助操作定义在 [client.go](./go-service/internal/redis/client.go)。本地配置模板位于 [config.yaml](./go-service/configs/config.yaml)。

@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS data_dag (
 CREATE TABLE IF NOT EXISTS data_job (
   job_id VARCHAR(64) NOT NULL PRIMARY KEY,
   dag_id VARCHAR(64) NOT NULL,
-  status ENUM('queued', 'running', 'succeeded', 'failed', 'cancelled') NOT NULL DEFAULT 'queued',
+  status ENUM('pending', 'running', 'success', 'failed', 'canceled') NOT NULL DEFAULT 'pending',
   start_time DATETIME(3) NULL,
   end_time DATETIME(3) NULL,
   trigger_type ENUM('manual', 'schedule', 'api') NOT NULL,
@@ -52,9 +52,12 @@ CREATE TABLE IF NOT EXISTS data_task (
   job_id VARCHAR(64) NOT NULL,
   template_id VARCHAR(64) NOT NULL,
   node_id VARCHAR(64) NOT NULL,
-  status ENUM('pending', 'running', 'succeeded', 'failed', 'skipped') NOT NULL DEFAULT 'pending',
+  status ENUM('pending', 'running', 'success', 'failed', 'canceled', 'skipped') NOT NULL DEFAULT 'pending',
   error_msg TEXT NULL,
   batch_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  fail_strategy ENUM('abort_dag', 'continue') NOT NULL,
+  retry_times INT UNSIGNED NOT NULL DEFAULT 0,
+  max_retry INT UNSIGNED NOT NULL DEFAULT 2,
   start_time DATETIME(3) NULL,
   end_time DATETIME(3) NULL,
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -65,6 +68,17 @@ CREATE TABLE IF NOT EXISTS data_task (
     FOREIGN KEY (job_id) REFERENCES data_job(job_id) ON DELETE CASCADE,
   CONSTRAINT fk_data_task_template
     FOREIGN KEY (template_id) REFERENCES data_template(template_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS data_event_inbox (
+  event_id VARCHAR(64) NOT NULL PRIMARY KEY,
+  job_id VARCHAR(64) NOT NULL,
+  task_id VARCHAR(64) NULL,
+  event_type VARCHAR(32) NOT NULL,
+  processed_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_data_event_inbox_job (job_id, processed_time),
+  CONSTRAINT fk_data_event_inbox_job
+    FOREIGN KEY (job_id) REFERENCES data_job(job_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS data_job_log (

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/job"
+	"github.com/daitaiyong/data-construct-platform/go-service/internal/kafka"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/template"
 )
 
@@ -18,6 +19,17 @@ type fakePreviewer struct {
 
 func (f fakePreviewer) Preview(context.Context, template.Template, uint32, json.RawMessage) ([]json.RawMessage, error) {
 	return f.rows, nil
+}
+
+type fakeEventPublisher struct {
+	topic   string
+	message kafka.Message
+}
+
+func (p *fakeEventPublisher) Publish(_ context.Context, topic string, message kafka.Message) error {
+	p.topic = topic
+	p.message = message
+	return nil
 }
 
 func TestValidateDAG(t *testing.T) {
@@ -101,6 +113,31 @@ func TestCreateJobUsesDAGMetadata(t *testing.T) {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("response %q does not contain %q", body, expected)
 		}
+	}
+}
+
+func TestCancelJobPublishesCancellationEvent(t *testing.T) {
+	publisher := &fakeEventPublisher{}
+	jobRepository := job.NewMemoryRepository()
+	created, err := jobRepository.Create("1700000000000000000", "manual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandlerWithEventPublisher(template.NewMemoryRepository(), jobRepository, nil, publisher).Routes()
+	jobID := created.ID
+	response := serve(handler, http.MethodPost, "/api/v1/jobs/"+jobID+"/cancel", "")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusAccepted, response.Body)
+	}
+	if publisher.topic != kafka.EventTopic || string(publisher.message.Key) != jobID {
+		t.Fatalf("published topic/key = %q/%q", publisher.topic, publisher.message.Key)
+	}
+	event, err := kafka.DecodeEventMessage(publisher.message.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.EventType != kafka.EventJobCancel || event.JobID != jobID {
+		t.Fatalf("published event = %#v", event)
 	}
 }
 

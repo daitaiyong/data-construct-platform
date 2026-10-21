@@ -14,6 +14,7 @@ import (
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/dag"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/id"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/job"
+	"github.com/daitaiyong/data-construct-platform/go-service/internal/kafka"
 	"github.com/daitaiyong/data-construct-platform/go-service/internal/template"
 )
 
@@ -21,6 +22,7 @@ type Handler struct {
 	templates template.Repository
 	jobs      job.Repository
 	previewer Previewer
+	events    kafka.Producer
 }
 
 type Previewer interface {
@@ -35,6 +37,15 @@ func NewHandler(templates template.Repository, jobs job.Repository, previewers .
 	return handler
 }
 
+func NewHandlerWithEventPublisher(templates template.Repository, jobs job.Repository, previewer Previewer, events kafka.Producer) *Handler {
+	return &Handler{
+		templates: templates,
+		jobs:      jobs,
+		previewer: previewer,
+		events:    events,
+	}
+}
+
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
@@ -47,6 +58,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/dags/validate", h.validateDAG)
 	mux.HandleFunc("POST /api/v1/jobs", h.createJob)
 	mux.HandleFunc("GET /api/v1/jobs/{id}", h.getJob)
+	mux.HandleFunc("POST /api/v1/jobs/{id}/cancel", h.cancelJob)
 	return withJSONContentType(mux)
 }
 
@@ -303,6 +315,49 @@ func (h *Handler) getJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, item)
+}
+
+func (h *Handler) cancelJob(w http.ResponseWriter, r *http.Request) {
+	if h.events == nil {
+		writeError(w, http.StatusServiceUnavailable, "job event publisher is not configured")
+		return
+	}
+	jobID := r.PathValue("id")
+	if !writeInvalidID(w, jobID, "job_id") {
+		return
+	}
+	item, err := h.jobs.Get(jobID)
+	if errors.Is(err, job.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to load job")
+		return
+	}
+	if item.Status != job.StatusPending && item.Status != job.StatusRunning {
+		writeError(w, http.StatusConflict, "job is not cancelable")
+		return
+	}
+	eventID, err := id.New()
+	if err != nil {
+		log.Printf("generate cancellation event ID for job %s: %v", jobID, err)
+		writeError(w, http.StatusInternalServerError, "unable to request job cancellation")
+		return
+	}
+	event := kafka.EventMessage{
+		EventID:   eventID,
+		EventType: kafka.EventJobCancel,
+		JobID:     jobID,
+		Payload:   kafka.EventPayload{},
+		Timestamp: time.Now().UTC(),
+	}
+	if err := kafka.PublishEvent(r.Context(), h.events, event); err != nil {
+		log.Printf("publish cancellation event for job %s: %v", jobID, err)
+		writeError(w, http.StatusBadGateway, "unable to publish job cancellation event")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"data": map[string]string{"job_id": jobID, "status": "cancellation_requested"}})
 }
 
 func writeInvalidID(w http.ResponseWriter, value, name string) bool {
